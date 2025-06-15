@@ -32,8 +32,7 @@ A organização dos arquivos do projeto é a seguinte:
     │   └── 📄 database.cpython-313.pyc
     ├── 🐍 database.py
     ├── 🐍 interface.py
-    ├── 🗃️ locadora.db
-    └── 🐍 teste.py
+    └── 🗃️ locadora.db
 ```
 
 ## 🚀 Como Executar o Projeto
