@@ -1,5 +1,3 @@
-# interface.py (Atualizado)
-
 import tkinter as tk
 from tkinter import ttk, messagebox
 from datetime import datetime
@@ -8,19 +6,18 @@ from datetime import datetime
 import database as db
 
 # =============================================================================
-# WIDGET PERSONALIZADO COM PLACEHOLDER (Sem alterações)
+# WIDGET PERSONALIZADO COM PLACEHOLDER
 # =============================================================================
 
 class EntryComTextoDeAjuda(ttk.Entry):
     """Um widget de entrada de texto que exibe um texto de ajuda quando vazio."""
-    # O valor do parâmetro 'cor_texto_ajuda' deve ser um nome de cor em inglês,
-    # pois o Tkinter não reconhece nomes de cores em português (ex: 'grey', 'blue').
     def __init__(self, master=None, texto_ajuda="PLACEHOLDER", cor_texto_ajuda='grey', **kwargs):
         super().__init__(master, **kwargs)
 
         self.texto_ajuda = texto_ajuda
         self.cor_texto_ajuda = cor_texto_ajuda
         self.cor_padrao_texto = self['foreground']
+        self.mostrando_texto_ajuda = False 
 
         self.bind("<FocusIn>", self._ao_receber_foco)
         self.bind("<FocusOut>", self._ao_perder_foco)
@@ -28,24 +25,29 @@ class EntryComTextoDeAjuda(ttk.Entry):
         self._colocar_texto_ajuda()
 
     def _colocar_texto_ajuda(self):
-        self.insert(0, self.texto_ajuda)
-        self['foreground'] = self.cor_texto_ajuda
+        if not self.get():
+            self.delete(0, tk.END)
+            self.insert(0, self.texto_ajuda)
+            self['foreground'] = self.cor_texto_ajuda
+            self.mostrando_texto_ajuda = True
 
     def _ao_receber_foco(self, *args):
-        if self['foreground'] == self.cor_texto_ajuda:
+        if self.mostrando_texto_ajuda:
             self.delete('0', 'end')
             self['foreground'] = self.cor_padrao_texto
+            self.mostrando_texto_ajuda = False
 
     def _ao_perder_foco(self, *args):
         if not self.get():
             self._colocar_texto_ajuda()
+        else:
+            self.mostrando_texto_ajuda = False
 
 # =============================================================================
-# FUNÇÕES AUXILIARES DE FORMATAÇÃO E UI (Sem alterações)
+# FUNÇÕES AUXILIARES DE FORMATAÇÃO E UI
 # =============================================================================
 
 def criar_cabecalho_secao(parent, text):
-    """Cria um cabeçalho de seção centralizado e estilizado com linhas."""
     frame_cabecalho = ttk.Frame(parent)
     frame_cabecalho.pack(fill="x", padx=10, pady=(15, 5))
     frame_cabecalho.columnconfigure(0, weight=1)
@@ -61,14 +63,12 @@ def criar_cabecalho_secao(parent, text):
     ttk.Separator(frame_cabecalho, orient="horizontal").grid(row=0, column=2, sticky="ew", padx=10)
 
 def formatar_cpf(cpf):
-    """Formata uma string de CPF para o formato 123.456.789-01."""
     cpf_numerico = ''.join(filter(str.isdigit, str(cpf)))
     if len(cpf_numerico) == 11:
         return f"{cpf_numerico[:3]}.{cpf_numerico[3:6]}.{cpf_numerico[6:9]}-{cpf_numerico[9:]}"
     return cpf
 
 def formatar_telefone(telefone):
-    """Formata um número de telefone para (XX) XXXXX-XXXX ou (XX) XXXX-XXXX."""
     tel_numerico = ''.join(filter(str.isdigit, str(telefone)))
     if len(tel_numerico) == 11:
         return f"({tel_numerico[:2]}) {tel_numerico[2:7]}-{tel_numerico[7:]}"
@@ -77,40 +77,36 @@ def formatar_telefone(telefone):
     return telefone
 
 def formatar_moeda(valor):
-    """Formata um valor numérico para o formato R$ 1.234,56."""
     try:
         return f"R$ {float(valor):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
     except (ValueError, TypeError):
         return "R$ 0,00"
 
 def formatar_texto_capitalizado(texto):
-    """Capitaliza a primeira letra de cada palavra em um texto."""
     if isinstance(texto, str):
         return texto.title()
     return texto
 
 def obter_cabecalho_exibicao(nome_coluna):
-    """Retorna um cabeçalho mais amigável para a coluna."""
     cabecalhos = {
         "cpf": "CPF", "valor_diaria": "Valor da Diária", "email": "E-mail",
         "id": "ID", "placa_carro": "Placa do Carro", "cpf_cliente": "CPF do Cliente",
         "data_retirada": "Data de Retirada", "data_devolucao": "Data de Devolução",
         "nome_cliente": "Nome do Cliente", "valor_total": "Valor Total", "carro": "Carro",
         "cliente": "Cliente", "data_entrada": "Data de Entrada", "data_saida": "Data de Saída",
-        "custo": "Custo", "descricao": "Descrição"
+        "custo": "Custo Previsto", "descricao": "Descrição"
     }
     return cabecalhos.get(nome_coluna, nome_coluna.replace("_", " ").title())
 
 # =============================================================================
-# CLASSE PRINCIPAL DA APLICAÇÃO (MODIFICADA)
+# CLASSE PRINCIPAL DA APLICAÇÃO
 # =============================================================================
 
 class LocadoraApp(tk.Tk):
-    """Classe principal da aplicação da locadora."""
     def __init__(self):
         super().__init__()
         self.title("Sistema de Gerenciamento de Locadora")
-        self.geometry("1200x750") # Aumentei um pouco a altura para a nova aba
+        self.geometry("1200x750")
 
         db.criar_tabelas()
 
@@ -118,7 +114,7 @@ class LocadoraApp(tk.Tk):
         self._criar_widgets_principais()
         
         self.focus_set()
-        self.ao_mudar_aba(None) # Força a atualização da primeira aba ao iniciar
+        self.ao_mudar_aba(None)
 
     def _configurar_estilos(self):
         style = ttk.Style(self)
@@ -134,25 +130,22 @@ class LocadoraApp(tk.Tk):
         self.notebook = ttk.Notebook(self)
         self.notebook.pack(pady=5, padx=10, expand=True, fill="both")
 
-        # Classes de abas
         self.tab_veiculos = AbaVeiculos(self.notebook)
         self.tab_clientes = AbaClientes(self.notebook)
         self.tab_alugueis = AbaAlugueis(self.notebook)
-        self.tab_manutencao = AbaManutencao(self.notebook) # NOVA ABA
+        self.tab_manutencao = AbaManutencao(self.notebook)
         self.tab_relatorios = AbaRelatorios(self.notebook)
 
         self.notebook.add(self.tab_veiculos, text="🚗\u2009Veículos")
         self.notebook.add(self.tab_clientes, text="👥\u2009Clientes")
         self.notebook.add(self.tab_alugueis, text="🔑\u2009Aluguéis")
-        self.notebook.add(self.tab_manutencao, text="🛠️\u2009Manutenção") # NOVA ABA
+        self.notebook.add(self.tab_manutencao, text="🛠️\u2009Manutenção")
         self.notebook.add(self.tab_relatorios, text="📊\u2009Relatórios")
         
         self.notebook.bind("<<NotebookTabChanged>>", self.ao_mudar_aba)
 
     def ao_mudar_aba(self, event):
-        """Atualiza os dados da aba selecionada e remove o foco de outros widgets."""
         self.focus_set()
-        
         try:
             aba_selecionada = self.notebook.select()
             nome_da_aba = self.notebook.tab(aba_selecionada, "text")
@@ -164,19 +157,17 @@ class LocadoraApp(tk.Tk):
             elif "Aluguéis" in nome_da_aba:
                 self.tab_alugueis.popular_alugueis_ativos()
                 self.tab_alugueis.atualizar_sugestoes()
-            elif "Manutenção" in nome_da_aba: # LÓGICA PARA ATUALIZAR A NOVA ABA
+            elif "Manutenção" in nome_da_aba:
                 self.tab_manutencao.popular_manutencoes_ativas()
                 self.tab_manutencao.atualizar_veiculos_disponiveis()
             elif "Relatórios" in nome_da_aba:
                 self.tab_relatorios.ver_historico_geral()
                 self.tab_relatorios.atualizar_sugestoes_cpf()
         except tk.TclError:
-            # Ignora o erro que pode ocorrer se a aba for trocada muito rápido
             pass
 
-
 # =============================================================================
-# ABA DE VEÍCULOS (Sem alterações)
+# ABA DE VEÍCULOS
 # =============================================================================
 
 class AbaVeiculos(ttk.Frame):
@@ -262,16 +253,15 @@ class AbaVeiculos(ttk.Frame):
             mapa_entradas = {"placa": valores[0], "marca": valores[1], "modelo": valores[2], 
                              "ano": valores[3], "cor": valores[4], "valor_da_diária": valor_sem_cifrao}
             for chave, valor in mapa_entradas.items():
-                self.entradas[chave]._ao_receber_foco()
                 self.entradas[chave].delete(0, tk.END)
                 self.entradas[chave].insert(0, valor)
+                self.entradas[chave].mostrando_texto_ajuda = False
             
             self.entradas["placa"].config(state="disabled")
 
     def limpar_campos(self, limpar_selecao=True):
         self.entradas["placa"].config(state="normal")
         for entrada in self.entradas.values():
-            entrada._ao_receber_foco()
             entrada.delete(0, "end")
             entrada._ao_perder_foco()
         if limpar_selecao and self.tree.selection():
@@ -280,6 +270,7 @@ class AbaVeiculos(ttk.Frame):
 
     def adicionar_veiculo(self):
         dados = {chave: entrada.get() for chave, entrada in self.entradas.items()}
+        if self.entradas['placa'].mostrando_texto_ajuda: dados['placa'] = ''
         sucesso, mensagens = db.adicionar_veiculo(
             dados["placa"], dados["marca"], dados["modelo"], dados["ano"], 
             dados["cor"], dados["valor_da_diária"]
@@ -332,7 +323,7 @@ class AbaVeiculos(ttk.Frame):
                 messagebox.showerror("Erro", "\n".join(mensagens))
 
 # =============================================================================
-# ABA DE CLIENTES (Sem alterações)
+# ABA DE CLIENTES
 # =============================================================================
 
 class AbaClientes(ttk.Frame):
@@ -414,15 +405,14 @@ class AbaClientes(ttk.Frame):
             valores = self.tree.item(id_item_clicado)['values']
             mapa_entradas = {"cpf": valores[0], "nome": valores[1], "telefone": valores[2], "e_mail": valores[3]}
             for chave, valor in mapa_entradas.items():
-                self.entradas[chave]._ao_receber_foco()
                 self.entradas[chave].delete(0, tk.END)
                 self.entradas[chave].insert(0, valor)
+                self.entradas[chave].mostrando_texto_ajuda = False
             self.entradas["cpf"].config(state="disabled")
 
     def limpar_campos(self, limpar_selecao=True):
         self.entradas["cpf"].config(state="normal")
         for entrada in self.entradas.values():
-            entrada._ao_receber_foco()
             entrada.delete(0, "end")
             entrada._ao_perder_foco()
         if limpar_selecao and self.tree.selection():
@@ -477,7 +467,7 @@ class AbaClientes(ttk.Frame):
                 messagebox.showerror("Erro", "\n".join(msgs))
 
 # =============================================================================
-# ABA DE ALUGUÉIS (Sem alterações)
+# ABA DE ALUGUÉIS
 # =============================================================================
 
 class AbaAlugueis(ttk.Frame):
@@ -530,7 +520,6 @@ class AbaAlugueis(ttk.Frame):
         self.tree.bind("<ButtonRelease-1>", self.ao_clicar_no_item)
 
     def popular_alugueis_ativos(self):
-        """Busca aluguéis ativos no banco de dados e popula a lista."""
         for linha in self.tree.get_children(): self.tree.delete(linha)
         
         try:
@@ -542,7 +531,6 @@ class AbaAlugueis(ttk.Frame):
             messagebox.showerror("Erro de Banco de Dados", f"Não foi possível buscar os aluguéis:\n{e}")
     
     def ao_clicar_no_item(self, event):
-        """Preenche o formulário ao clicar em um item da lista."""
         id_item_clicado = self.tree.identify_row(event.y)
         if not id_item_clicado: return
 
@@ -563,7 +551,6 @@ class AbaAlugueis(ttk.Frame):
             self.entradas['cpf_do_cliente'].config(state="disabled")
 
     def limpar_campos(self, limpar_selecao=True):
-        """Limpa os campos do formulário e a seleção da lista."""
         self.entradas['placa_do_carro'].config(state="normal")
         self.entradas['cpf_do_cliente'].config(state="normal")
         
@@ -575,7 +562,6 @@ class AbaAlugueis(ttk.Frame):
         self.item_selecionado = None
 
     def realizar_aluguel(self):
-        """Processa o registro de um novo aluguel."""
         if self.item_selecionado:
             messagebox.showwarning("Ação Inválida", "Limpe a seleção atual antes de registrar um novo aluguel.")
             return
@@ -593,7 +579,6 @@ class AbaAlugueis(ttk.Frame):
             messagebox.showerror("Erro no Aluguel", "\n".join(msgs))
             
     def realizar_devolucao(self):
-        """Processa a devolução de um veículo selecionado na lista."""
         selecao = self.tree.selection()
         if not selecao:
             messagebox.showwarning("Ação Inválida", "Selecione um aluguel na lista para realizar a devolução.")
@@ -614,7 +599,6 @@ class AbaAlugueis(ttk.Frame):
             messagebox.showerror("Erro na Devolução", "\n".join(msgs))
 
     def atualizar_sugestoes(self):
-        """Atualiza as listas de sugestões para os campos de Placa e CPF."""
         carros_disponiveis = [carro['placa'].upper() for carro in db.listar_veiculos(status_filtro='Disponível')]
         self.entradas['placa_do_carro']['values'] = carros_disponiveis
         
@@ -622,7 +606,7 @@ class AbaAlugueis(ttk.Frame):
         self.entradas['cpf_do_cliente']['values'] = cpfs_formatados
 
 # =============================================================================
-# ABA DE MANUTENÇÃO (NOVA)
+# ABA DE MANUTENÇÃO
 # =============================================================================
 
 class AbaManutencao(ttk.Frame):
@@ -634,52 +618,46 @@ class AbaManutencao(ttk.Frame):
         self.atualizar_veiculos_disponiveis()
 
     def _criar_widgets(self):
-        # Frame superior para gerenciamento
-        frame_gerenciamento = ttk.Frame(self)
-        frame_gerenciamento.pack(fill='x', padx=10, pady=5)
+        criar_cabecalho_secao(self, "Gerenciar Manutenção de Veículos")
+        frame_formulario_wrapper = ttk.Frame(self)
+        frame_formulario_wrapper.pack(pady=(0, 10), fill="x")
 
-        # --- Sub-frame para ENVIAR para manutenção ---
-        frame_enviar = ttk.LabelFrame(frame_gerenciamento, text="Enviar Veículo para Manutenção")
-        frame_enviar.pack(side="left", fill="both", expand=True, padx=(0, 5))
-
-        ttk.Label(frame_enviar, text="Veículo Disponível:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
-        self.combo_placa_enviar = ttk.Combobox(frame_enviar, width=20)
+        frame_formulario = ttk.Frame(frame_formulario_wrapper)
+        frame_formulario.pack()
+        
+        ttk.Label(frame_formulario, text="Veículo Disponível:").grid(row=0, column=0, padx=5, pady=5, sticky="e")
+        self.combo_placa_enviar = ttk.Combobox(frame_formulario, width=25)
         self.combo_placa_enviar.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
 
-        ttk.Label(frame_enviar, text="Motivo/Descrição:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
-        self.entry_descricao = EntryComTextoDeAjuda(frame_enviar, texto_ajuda="Ex: Troca de óleo", width=30)
-        self.entry_descricao.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
+        ttk.Label(frame_formulario, text="Motivo/Descrição:").grid(row=0, column=2, padx=(20, 5), pady=5, sticky="e")
+        self.entry_descricao = EntryComTextoDeAjuda(frame_formulario, texto_ajuda="Ex: Troca de óleo", width=30)
+        self.entry_descricao.grid(row=0, column=3, padx=5, pady=5, sticky="ew")
         
-        ttk.Button(frame_enviar, text="✔️\u2009Confirmar Envio", style="Emoji.TButton", command=self.enviar_para_manutencao).grid(row=2, column=0, columnspan=2, pady=10)
-
-        # --- Sub-frame para REGISTRAR RETORNO da manutenção ---
-        frame_retornar = ttk.LabelFrame(frame_gerenciamento, text="Registrar Retorno de Veículo")
-        frame_retornar.pack(side="right", fill="both", expand=True, padx=(5, 0))
-
-        self.label_retorno_info = ttk.Label(frame_retornar, text="Selecione um veículo na lista abaixo")
-        self.label_retorno_info.grid(row=0, column=0, columnspan=2, padx=5, pady=5)
-
-        ttk.Label(frame_retornar, text="Custo do Serviço:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
-        self.entry_custo = EntryComTextoDeAjuda(frame_retornar, texto_ajuda="Ex: 350.50", width=20)
+        ttk.Label(frame_formulario, text="Custo Previsto (R$):").grid(row=1, column=0, padx=5, pady=5, sticky="e")
+        self.entry_custo = EntryComTextoDeAjuda(frame_formulario, texto_ajuda="Ex: 350.50", width=25)
         self.entry_custo.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
 
-        self.btn_registrar_retorno = ttk.Button(frame_retornar, text="✅\u2009Registrar Retorno", style="Emoji.TButton", command=self.registrar_retorno)
-        self.btn_registrar_retorno.grid(row=2, column=0, columnspan=2, pady=10)
+        frame_botoes = ttk.Frame(self)
+        frame_botoes.pack(pady=10)
+        
+        ttk.Button(frame_botoes, text="✔️\u2009Enviar para Manutenção", style="Emoji.TButton", command=self.enviar_para_manutencao).pack(side="left", padx=10)
+        self.btn_registrar_retorno = ttk.Button(frame_botoes, text="✅\u2009Registrar Retorno", style="Emoji.TButton", command=self.registrar_retorno)
+        self.btn_registrar_retorno.pack(side="left", padx=10)
+        ttk.Button(frame_botoes, text="🧹\u2009Limpar", style="Emoji.TButton", command=self.limpar_campos).pack(side="left", padx=10)
 
-        # Seção da lista
         criar_cabecalho_secao(self, "Veículos Atualmente em Manutenção")
         frame_lista = ttk.Frame(self)
         frame_lista.pack(expand=True, fill="both", padx=10, pady=(0, 10))
 
-        colunas = ("id", "placa_carro", "descricao", "data_entrada")
+        colunas = ("id", "placa_carro", "descricao", "custo", "data_entrada")
         self.tree = ttk.Treeview(frame_lista, columns=colunas, show="headings")
         
         for col in colunas:
             self.tree.heading(col, text=obter_cabecalho_exibicao(col))
-            self.tree.column(col, anchor=tk.CENTER)
+            self.tree.column(col, anchor=tk.CENTER, width=150)
         
-        self.tree.column("id", width=50)
-        self.tree.column("descricao", width=400)
+        self.tree.column("id", width=60)
+        self.tree.column("descricao", width=350)
         
         self.tree.pack(side="left", fill="both", expand=True)
         scrollbar = ttk.Scrollbar(frame_lista, orient="vertical", command=self.tree.yview)
@@ -687,13 +665,19 @@ class AbaManutencao(ttk.Frame):
         scrollbar.pack(side="right", fill="y")
 
         self.tree.bind("<ButtonRelease-1>", self.ao_clicar_no_item)
-        self.limpar_campos() # Estado inicial dos widgets
+        self.limpar_campos()
 
     def popular_manutencoes_ativas(self):
         for i in self.tree.get_children(): self.tree.delete(i)
         manutencoes = db.listar_manutencoes(status_filtro='Em Andamento')
         for item in manutencoes:
-            valores = (item['id'], item['placa_carro'], item['descricao'], item['data_entrada'])
+            valores = (
+                item['id'], 
+                item['placa_carro'], 
+                item['descricao'], 
+                formatar_moeda(item['custo']), 
+                item['data_entrada']
+            )
             self.tree.insert("", "end", values=valores)
         self.limpar_campos()
 
@@ -701,21 +685,22 @@ class AbaManutencao(ttk.Frame):
         veiculos = db.listar_veiculos(status_filtro='Disponível')
         placas = [v['placa'] for v in veiculos]
         self.combo_placa_enviar['values'] = placas
+        if placas:
+            self.combo_placa_enviar.set('')
 
     def ao_clicar_no_item(self, event):
-        id_item_clicado = self.tree.identify_row(event.y)
-        if not id_item_clicado: return
+        id_item_clicado_str = self.tree.identify_row(event.y)
+        if not id_item_clicado_str: 
+            self.limpar_campos()
+            return
+        
+        id_item_clicado = self.tree.item(id_item_clicado_str)['values'][0]
 
-        if str(self.item_selecionado_id) == str(self.tree.item(id_item_clicado)['values'][0]):
+        if self.item_selecionado_id == id_item_clicado:
              self.limpar_campos()
         else:
-            self.tree.selection_set(id_item_clicado)
-            valores = self.tree.item(id_item_clicado)['values']
-            self.item_selecionado_id = valores[0]
-            placa = valores[1]
-            
-            self.label_retorno_info.config(text=f"Registrando retorno para: {placa}")
-            self.entry_custo.config(state="normal")
+            self.tree.selection_set(id_item_clicado_str)
+            self.item_selecionado_id = id_item_clicado
             self.btn_registrar_retorno.config(state="normal")
 
     def limpar_campos(self):
@@ -724,18 +709,20 @@ class AbaManutencao(ttk.Frame):
             self.tree.selection_remove(self.tree.selection())
 
         self.combo_placa_enviar.set('')
-        self.entry_descricao._ao_receber_foco(); self.entry_descricao.delete(0, 'end'); self.entry_descricao._ao_perder_foco()
-        self.entry_custo._ao_receber_foco(); self.entry_custo.delete(0, 'end'); self.entry_custo._ao_perder_foco()
+        self.entry_descricao.delete(0, 'end'); self.entry_descricao._ao_perder_foco()
+        self.entry_custo.delete(0, 'end'); self.entry_custo._ao_perder_foco()
         
-        self.label_retorno_info.config(text="Selecione um veículo na lista abaixo")
-        self.entry_custo.config(state="disabled")
         self.btn_registrar_retorno.config(state="disabled")
 
     def enviar_para_manutencao(self):
         placa = self.combo_placa_enviar.get()
         descricao = self.entry_descricao.get()
+        custo = self.entry_custo.get()
         
-        sucesso, msgs = db.enviar_para_manutencao(placa, descricao)
+        if self.entry_descricao.mostrando_texto_ajuda: descricao = ""
+        if self.entry_custo.mostrando_texto_ajuda: custo = ""
+
+        sucesso, msgs = db.enviar_para_manutencao(placa, descricao, custo)
         if sucesso:
             messagebox.showinfo("Sucesso", msgs[0])
             self.popular_manutencoes_ativas()
@@ -745,11 +732,13 @@ class AbaManutencao(ttk.Frame):
             
     def registrar_retorno(self):
         if not self.item_selecionado_id:
-            messagebox.showwarning("Aviso", "Nenhum item selecionado para retorno.")
+            messagebox.showwarning("Aviso", "Selecione um veículo na lista para registrar o retorno.")
             return
 
-        custo = self.entry_custo.get()
-        sucesso, msgs = db.registrar_retorno_manutencao(self.item_selecionado_id, custo)
+        if not messagebox.askyesno("Confirmar Retorno", "Deseja confirmar o retorno deste veículo da manutenção?"):
+            return
+            
+        sucesso, msgs = db.registrar_retorno_manutencao(self.item_selecionado_id)
         
         if sucesso:
             messagebox.showinfo("Sucesso", msgs[0])
@@ -759,7 +748,7 @@ class AbaManutencao(ttk.Frame):
             messagebox.showerror("Erro", "\n".join(msgs))
 
 # =============================================================================
-# ABA DE RELATÓRIOS (Sem alterações)
+# ABA DE RELATÓRIOS
 # =============================================================================
 
 class AbaRelatorios(ttk.Frame):
@@ -817,6 +806,8 @@ class AbaRelatorios(ttk.Frame):
         clientes = db.listar_clientes()
         cpfs_formatados = [formatar_cpf(c['cpf']) for c in clientes]
         self.entrada_cpf_hist['values'] = cpfs_formatados
+        if cpfs_formatados:
+            self.entrada_cpf_hist.set('')
 
     def ao_clicar_no_item(self, event):
         id_item_clicado = self.tree_hist.identify_row(event.y)
@@ -865,6 +856,11 @@ class AbaRelatorios(ttk.Frame):
     def calcular_faturamento(self):
         data_inicio = self.entrada_data_inicio.get()
         data_fim = self.entrada_data_fim.get()
+
+        if self.entrada_data_inicio.mostrando_texto_ajuda or self.entrada_data_fim.mostrando_texto_ajuda:
+            messagebox.showwarning("Aviso", "As datas de início e fim são obrigatórias.")
+            return
+
         sucesso, resultado = db.calcular_faturamento_periodo(data_inicio, data_fim)
         if sucesso:
             self.label_faturamento.config(text=f"Faturamento Total: {formatar_moeda(resultado)}")
