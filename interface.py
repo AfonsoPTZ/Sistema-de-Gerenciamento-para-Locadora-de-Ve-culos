@@ -82,6 +82,13 @@ def formatar_moeda(valor):
     except (ValueError, TypeError):
         return "R$ 0,00"
 
+def desformatar_moeda(valor_str):
+    """Converte 'R$ 1.234,56' de volta para um float '1234.56'."""
+    try:
+        return float(valor_str.replace("R$", "").replace(".", "").replace(",", ".").strip())
+    except (ValueError, TypeError):
+        return 0.0
+
 def formatar_texto_capitalizado(texto):
     if isinstance(texto, str):
         return texto.title()
@@ -166,10 +173,7 @@ class LocadoraApp(tk.Tk):
         except tk.TclError:
             pass
 
-# =============================================================================
-# ABA DE VEÍCULOS
-# =============================================================================
-
+# ... (O restante das classes AbaVeiculos, AbaClientes, AbaAlugueis e AbaRelatorios permanece o mesmo) ...
 class AbaVeiculos(ttk.Frame):
     def __init__(self, parent):
         super().__init__(parent)
@@ -322,10 +326,6 @@ class AbaVeiculos(ttk.Frame):
             else:
                 messagebox.showerror("Erro", "\n".join(mensagens))
 
-# =============================================================================
-# ABA DE CLIENTES
-# =============================================================================
-
 class AbaClientes(ttk.Frame):
     def __init__(self, parent):
         super().__init__(parent)
@@ -466,10 +466,6 @@ class AbaClientes(ttk.Frame):
             else:
                 messagebox.showerror("Erro", "\n".join(msgs))
 
-# =============================================================================
-# ABA DE ALUGUÉIS
-# =============================================================================
-
 class AbaAlugueis(ttk.Frame):
     def __init__(self, parent):
         super().__init__(parent)
@@ -605,152 +601,6 @@ class AbaAlugueis(ttk.Frame):
         cpfs_formatados = [formatar_cpf(c['cpf']) for c in db.listar_clientes()]
         self.entradas['cpf_do_cliente']['values'] = cpfs_formatados
 
-# =============================================================================
-# ABA DE MANUTENÇÃO
-# =============================================================================
-
-class AbaManutencao(ttk.Frame):
-    def __init__(self, parent):
-        super().__init__(parent)
-        self.item_selecionado_id = None
-        self._criar_widgets()
-        self.popular_manutencoes_ativas()
-        self.atualizar_veiculos_disponiveis()
-
-    def _criar_widgets(self):
-        criar_cabecalho_secao(self, "Gerenciar Manutenção de Veículos")
-        frame_formulario_wrapper = ttk.Frame(self)
-        frame_formulario_wrapper.pack(pady=(0, 10), fill="x")
-
-        frame_formulario = ttk.Frame(frame_formulario_wrapper)
-        frame_formulario.pack()
-        
-        ttk.Label(frame_formulario, text="Veículo Disponível:").grid(row=0, column=0, padx=5, pady=5, sticky="e")
-        self.combo_placa_enviar = ttk.Combobox(frame_formulario, width=25)
-        self.combo_placa_enviar.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
-
-        ttk.Label(frame_formulario, text="Motivo/Descrição:").grid(row=0, column=2, padx=(20, 5), pady=5, sticky="e")
-        self.entry_descricao = EntryComTextoDeAjuda(frame_formulario, texto_ajuda="Ex: Troca de óleo", width=30)
-        self.entry_descricao.grid(row=0, column=3, padx=5, pady=5, sticky="ew")
-        
-        ttk.Label(frame_formulario, text="Custo Previsto (R$):").grid(row=1, column=0, padx=5, pady=5, sticky="e")
-        self.entry_custo = EntryComTextoDeAjuda(frame_formulario, texto_ajuda="Ex: 350.50", width=25)
-        self.entry_custo.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
-
-        frame_botoes = ttk.Frame(self)
-        frame_botoes.pack(pady=10)
-        
-        ttk.Button(frame_botoes, text="✔️\u2009Enviar para Manutenção", style="Emoji.TButton", command=self.enviar_para_manutencao).pack(side="left", padx=10)
-        self.btn_registrar_retorno = ttk.Button(frame_botoes, text="✅\u2009Registrar Retorno", style="Emoji.TButton", command=self.registrar_retorno)
-        self.btn_registrar_retorno.pack(side="left", padx=10)
-        ttk.Button(frame_botoes, text="🧹\u2009Limpar", style="Emoji.TButton", command=self.limpar_campos).pack(side="left", padx=10)
-
-        criar_cabecalho_secao(self, "Veículos Atualmente em Manutenção")
-        frame_lista = ttk.Frame(self)
-        frame_lista.pack(expand=True, fill="both", padx=10, pady=(0, 10))
-
-        colunas = ("id", "placa_carro", "descricao", "custo", "data_entrada")
-        self.tree = ttk.Treeview(frame_lista, columns=colunas, show="headings")
-        
-        for col in colunas:
-            self.tree.heading(col, text=obter_cabecalho_exibicao(col))
-            self.tree.column(col, anchor=tk.CENTER, width=150)
-        
-        self.tree.column("id", width=60)
-        self.tree.column("descricao", width=350)
-        
-        self.tree.pack(side="left", fill="both", expand=True)
-        scrollbar = ttk.Scrollbar(frame_lista, orient="vertical", command=self.tree.yview)
-        self.tree.configure(yscrollcommand=scrollbar.set)
-        scrollbar.pack(side="right", fill="y")
-
-        self.tree.bind("<ButtonRelease-1>", self.ao_clicar_no_item)
-        self.limpar_campos()
-
-    def popular_manutencoes_ativas(self):
-        for i in self.tree.get_children(): self.tree.delete(i)
-        manutencoes = db.listar_manutencoes(status_filtro='Em Andamento')
-        for item in manutencoes:
-            valores = (
-                item['id'], 
-                item['placa_carro'], 
-                item['descricao'], 
-                formatar_moeda(item['custo']), 
-                item['data_entrada']
-            )
-            self.tree.insert("", "end", values=valores)
-        self.limpar_campos()
-
-    def atualizar_veiculos_disponiveis(self):
-        veiculos = db.listar_veiculos(status_filtro='Disponível')
-        placas = [v['placa'] for v in veiculos]
-        self.combo_placa_enviar['values'] = placas
-        if placas:
-            self.combo_placa_enviar.set('')
-
-    def ao_clicar_no_item(self, event):
-        id_item_clicado_str = self.tree.identify_row(event.y)
-        if not id_item_clicado_str: 
-            self.limpar_campos()
-            return
-        
-        id_item_clicado = self.tree.item(id_item_clicado_str)['values'][0]
-
-        if self.item_selecionado_id == id_item_clicado:
-             self.limpar_campos()
-        else:
-            self.tree.selection_set(id_item_clicado_str)
-            self.item_selecionado_id = id_item_clicado
-            self.btn_registrar_retorno.config(state="normal")
-
-    def limpar_campos(self):
-        self.item_selecionado_id = None
-        if self.tree.selection():
-            self.tree.selection_remove(self.tree.selection())
-
-        self.combo_placa_enviar.set('')
-        self.entry_descricao.delete(0, 'end'); self.entry_descricao._ao_perder_foco()
-        self.entry_custo.delete(0, 'end'); self.entry_custo._ao_perder_foco()
-        
-        self.btn_registrar_retorno.config(state="disabled")
-
-    def enviar_para_manutencao(self):
-        placa = self.combo_placa_enviar.get()
-        descricao = self.entry_descricao.get()
-        custo = self.entry_custo.get()
-        
-        if self.entry_descricao.mostrando_texto_ajuda: descricao = ""
-        if self.entry_custo.mostrando_texto_ajuda: custo = ""
-
-        sucesso, msgs = db.enviar_para_manutencao(placa, descricao, custo)
-        if sucesso:
-            messagebox.showinfo("Sucesso", msgs[0])
-            self.popular_manutencoes_ativas()
-            self.atualizar_veiculos_disponiveis()
-        else:
-            messagebox.showerror("Erro", "\n".join(msgs))
-            
-    def registrar_retorno(self):
-        if not self.item_selecionado_id:
-            messagebox.showwarning("Aviso", "Selecione um veículo na lista para registrar o retorno.")
-            return
-
-        if not messagebox.askyesno("Confirmar Retorno", "Deseja confirmar o retorno deste veículo da manutenção?"):
-            return
-            
-        sucesso, msgs = db.registrar_retorno_manutencao(self.item_selecionado_id)
-        
-        if sucesso:
-            messagebox.showinfo("Sucesso", msgs[0])
-            self.popular_manutencoes_ativas()
-            self.atualizar_veiculos_disponiveis()
-        else:
-            messagebox.showerror("Erro", "\n".join(msgs))
-
-# =============================================================================
-# ABA DE RELATÓRIOS
-# =============================================================================
-
 class AbaRelatorios(ttk.Frame):
     def __init__(self, parent):
         super().__init__(parent)
@@ -866,6 +716,192 @@ class AbaRelatorios(ttk.Frame):
             self.label_faturamento.config(text=f"Faturamento Total: {formatar_moeda(resultado)}")
         else:
             messagebox.showerror("Erro de Data", resultado[0])
+
+# =============================================================================
+# ABA DE MANUTENÇÃO (MODIFICADA)
+# =============================================================================
+
+class AbaManutencao(ttk.Frame):
+    def __init__(self, parent):
+        super().__init__(parent)
+        self.item_selecionado_id = None
+        self._criar_widgets()
+        self.popular_manutencoes_ativas()
+        self.atualizar_veiculos_disponiveis()
+
+    def _criar_widgets(self):
+        criar_cabecalho_secao(self, "Gerenciar Manutenção de Veículos")
+        frame_formulario_wrapper = ttk.Frame(self)
+        frame_formulario_wrapper.pack(pady=(0, 10), fill="x")
+
+        frame_formulario = ttk.Frame(frame_formulario_wrapper)
+        frame_formulario.pack()
+        
+        ttk.Label(frame_formulario, text="Veículo:").grid(row=0, column=0, padx=5, pady=5, sticky="e")
+        self.combo_placa_enviar = ttk.Combobox(frame_formulario, width=25)
+        self.combo_placa_enviar.grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+
+        ttk.Label(frame_formulario, text="Motivo/Descrição:").grid(row=0, column=2, padx=(20, 5), pady=5, sticky="e")
+        self.entry_descricao = EntryComTextoDeAjuda(frame_formulario, texto_ajuda="Ex: Troca de óleo", width=30)
+        self.entry_descricao.grid(row=0, column=3, padx=5, pady=5, sticky="ew")
+        
+        ttk.Label(frame_formulario, text="Custo Previsto (R$):").grid(row=1, column=0, padx=5, pady=5, sticky="e")
+        self.entry_custo = EntryComTextoDeAjuda(frame_formulario, texto_ajuda="Ex: 350.50", width=25)
+        self.entry_custo.grid(row=1, column=1, padx=5, pady=5, sticky="ew")
+
+        frame_botoes = ttk.Frame(self)
+        frame_botoes.pack(pady=10)
+        
+        self.btn_enviar = ttk.Button(frame_botoes, text="✔️\u2009Enviar para Manutenção", style="Emoji.TButton", command=self.enviar_para_manutencao)
+        self.btn_enviar.pack(side="left", padx=5)
+
+        self.btn_editar = ttk.Button(frame_botoes, text="✏️\u2009Salvar Edição", style="Emoji.TButton", command=self.editar_manutencao)
+        self.btn_editar.pack(side="left", padx=5)
+
+        self.btn_registrar_retorno = ttk.Button(frame_botoes, text="✅\u2009Registrar Retorno", style="Emoji.TButton", command=self.registrar_retorno)
+        self.btn_registrar_retorno.pack(side="left", padx=5)
+
+        ttk.Button(frame_botoes, text="🧹\u2009Limpar", style="Emoji.TButton", command=self.limpar_campos).pack(side="left", padx=5)
+
+        criar_cabecalho_secao(self, "Veículos Atualmente em Manutenção")
+        frame_lista = ttk.Frame(self)
+        frame_lista.pack(expand=True, fill="both", padx=10, pady=(0, 10))
+
+        colunas = ("id", "placa_carro", "descricao", "custo", "data_entrada")
+        self.tree = ttk.Treeview(frame_lista, columns=colunas, show="headings")
+        
+        for col in colunas:
+            self.tree.heading(col, text=obter_cabecalho_exibicao(col))
+            self.tree.column(col, anchor=tk.CENTER, width=150)
+        
+        self.tree.column("id", width=60)
+        self.tree.column("descricao", width=350)
+        
+        self.tree.pack(side="left", fill="both", expand=True)
+        scrollbar = ttk.Scrollbar(frame_lista, orient="vertical", command=self.tree.yview)
+        self.tree.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side="right", fill="y")
+
+        self.tree.bind("<ButtonRelease-1>", self.ao_clicar_no_item)
+        self.limpar_campos()
+
+    def popular_manutencoes_ativas(self):
+        for i in self.tree.get_children(): self.tree.delete(i)
+        manutencoes = db.listar_manutencoes(status_filtro='Em Andamento')
+        for item in manutencoes:
+            valores = (
+                item['id'], 
+                item['placa_carro'], 
+                item['descricao'], 
+                formatar_moeda(item['custo']), 
+                item['data_entrada']
+            )
+            self.tree.insert("", "end", values=valores)
+        self.limpar_campos()
+
+    def atualizar_veiculos_disponiveis(self):
+        veiculos = db.listar_veiculos(status_filtro='Disponível')
+        placas = [v['placa'] for v in veiculos]
+        self.combo_placa_enviar['values'] = placas
+        if placas:
+            self.combo_placa_enviar.set('')
+
+    def ao_clicar_no_item(self, event):
+        id_item_clicado_str = self.tree.identify_row(event.y)
+        if not id_item_clicado_str: 
+            return
+        
+        valores = self.tree.item(id_item_clicado_str)['values']
+        id_item_clicado = valores[0]
+
+        if self.item_selecionado_id == id_item_clicado:
+             self.limpar_campos()
+        else:
+            self.tree.selection_set(id_item_clicado_str)
+            self.item_selecionado_id = id_item_clicado
+            
+            placa = valores[1]
+            descricao = valores[2]
+            custo_sem_formatacao = desformatar_moeda(valores[3])
+
+            self.combo_placa_enviar.set(placa)
+            self.combo_placa_enviar.config(state="disabled")
+
+            self.entry_descricao.delete(0, "end")
+            self.entry_descricao.insert(0, descricao)
+            self.entry_descricao.mostrando_texto_ajuda = False
+            
+            self.entry_custo.delete(0, "end")
+            self.entry_custo.insert(0, f"{custo_sem_formatacao:.2f}".replace('.',','))
+            self.entry_custo.mostrando_texto_ajuda = False
+
+            self.btn_enviar.config(state="disabled")
+            self.btn_editar.config(state="normal")
+            self.btn_registrar_retorno.config(state="normal")
+
+    def limpar_campos(self):
+        self.item_selecionado_id = None
+        if self.tree.selection():
+            self.tree.selection_remove(self.tree.selection())
+
+        self.combo_placa_enviar.set('')
+        self.combo_placa_enviar.config(state="normal")
+        self.entry_descricao.delete(0, 'end'); self.entry_descricao._ao_perder_foco()
+        self.entry_custo.delete(0, 'end'); self.entry_custo._ao_perder_foco()
+        
+        self.btn_enviar.config(state="normal")
+        self.btn_editar.config(state="disabled")
+        self.btn_registrar_retorno.config(state="disabled")
+
+    def enviar_para_manutencao(self):
+        placa = self.combo_placa_enviar.get()
+        descricao = self.entry_descricao.get()
+        custo = self.entry_custo.get()
+        
+        if self.entry_descricao.mostrando_texto_ajuda: descricao = ""
+        if self.entry_custo.mostrando_texto_ajuda: custo = ""
+
+        sucesso, msgs = db.enviar_para_manutencao(placa, descricao, custo)
+        if sucesso:
+            messagebox.showinfo("Sucesso", msgs[0])
+            self.popular_manutencoes_ativas()
+            self.atualizar_veiculos_disponiveis()
+        else:
+            messagebox.showerror("Erro", "\n".join(msgs))
+    
+    def editar_manutencao(self):
+        if not self.item_selecionado_id:
+            messagebox.showwarning("Aviso", "Selecione um item na lista para editar.")
+            return
+            
+        descricao = self.entry_descricao.get()
+        custo = self.entry_custo.get()
+
+        sucesso, msgs = db.atualizar_manutencao(self.item_selecionado_id, descricao, custo)
+
+        if sucesso:
+            messagebox.showinfo("Sucesso", msgs[0])
+            self.popular_manutencoes_ativas() # Atualiza a lista e limpa os campos
+        else:
+            messagebox.showerror("Erro de Edição", "\n".join(msgs))
+            
+    def registrar_retorno(self):
+        if not self.item_selecionado_id:
+            messagebox.showwarning("Aviso", "Selecione um veículo na lista para registrar o retorno.")
+            return
+
+        if not messagebox.askyesno("Confirmar Retorno", "Deseja confirmar o retorno deste veículo da manutenção?"):
+            return
+            
+        sucesso, msgs = db.registrar_retorno_manutencao(self.item_selecionado_id)
+        
+        if sucesso:
+            messagebox.showinfo("Sucesso", msgs[0])
+            self.popular_manutencoes_ativas()
+            self.atualizar_veiculos_disponiveis()
+        else:
+            messagebox.showerror("Erro", "\n".join(msgs))
+
 
 if __name__ == '__main__':
     app = LocadoraApp()

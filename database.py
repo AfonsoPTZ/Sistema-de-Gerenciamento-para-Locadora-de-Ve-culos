@@ -58,7 +58,7 @@ def criar_tabelas():
             );
         """)
 
-        # Tabela de Manutenções (com custo no início)
+        # Tabela de Manutenções
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS manutencoes (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -79,18 +79,23 @@ def criar_tabelas():
         conn.close()
 
 # =============================================================================
-# FUNÇÕES DE VALIDAÇÃO (Sem alterações)
+# FUNÇÕES DE VALIDAÇÃO (CORRIGIDA)
 # =============================================================================
 
 def validar_placa(placa):
+    """Valida placas no formato antigo (ABC-1234) e Mercosul (ABC1D23)."""
     if not isinstance(placa, str) or not placa.strip():
         return "O campo 'Placa' é obrigatório."
     placa = placa.upper().strip()
+    
     padrao_mercosul = re.compile(r'^[A-Z]{3}\d[A-Z]\d{2}$')
     padrao_antigo = re.compile(r'^[A-Z]{3}-\d{4}$')
-    if padrao_mercosul.match(placa) or padrao_antigo.match(placa.replace("-", "")):
+    
+    # CORREÇÃO: Verifica a 'placa' diretamente contra os dois padrões.
+    if padrao_mercosul.match(placa) or padrao_antigo.match(placa):
         return None
-    return "Formato de placa inválido. Use 'ABC-1234' ou 'ABC1D23'."
+        
+    return "Formato de placa inválido. Use 'ABC1D23' ou 'ABC-1234'."
 
 def validar_ano(ano):
     if not ano: return "O campo 'Ano' é obrigatório."
@@ -134,10 +139,9 @@ def validar_cpf(cpf):
     return None
 
 # =============================================================================
-# OPERAÇÕES CRUD - VEÍCULOS (Sem alterações)
+# OPERAÇÕES CRUD - VEÍCULOS
 # =============================================================================
 def adicionar_veiculo(placa, marca, modelo, ano, cor, valor_diaria):
-    #... (código original sem alterações)
     erros = list(filter(None, [
         validar_placa(placa),
         "O campo 'Marca' é obrigatório." if not marca.strip() else None,
@@ -163,7 +167,6 @@ def adicionar_veiculo(placa, marca, modelo, ano, cor, valor_diaria):
         conn.close()
 
 def atualizar_veiculo(placa, marca, modelo, ano, cor, valor_diaria):
-    #... (código original sem alterações)
     erros = list(filter(None, [
         "O campo 'Marca' é obrigatório." if not marca.strip() else None,
         "O campo 'Modelo' é obrigatório." if not modelo.strip() else None,
@@ -188,7 +191,6 @@ def atualizar_veiculo(placa, marca, modelo, ano, cor, valor_diaria):
         conn.close()
 
 def remover_veiculo(placa):
-    #... (código original sem alterações)
     conn, cursor = conectar_bd()
     try:
         cursor.execute("DELETE FROM veiculos WHERE placa = ?", (placa.upper().strip(),))
@@ -202,7 +204,6 @@ def remover_veiculo(placa):
         conn.close()
 
 def listar_veiculos(status_filtro=None):
-    #... (código original sem alterações)
     conn, cursor = conectar_bd()
     query = "SELECT * FROM veiculos"
     params = []
@@ -215,10 +216,9 @@ def listar_veiculos(status_filtro=None):
     return veiculos
 
 # =============================================================================
-# OPERAÇÕES CRUD - CLIENTES (Sem alterações)
+# OPERAÇÕES CRUD - CLIENTES
 # =============================================================================
 def adicionar_cliente(cpf, nome, telefone, email):
-    #... (código original sem alterações)
     erros = list(filter(None, [
         validar_cpf(cpf),
         "O campo 'Nome' é obrigatório." if not nome.strip() else None
@@ -245,7 +245,6 @@ def adicionar_cliente(cpf, nome, telefone, email):
         conn.close()
 
 def atualizar_cliente(cpf, nome, telefone, email):
-    #... (código original sem alterações)
     erros = list(filter(None, [
         validar_cpf(cpf),
         "O campo 'Nome' é obrigatório." if not nome.strip() else None
@@ -268,7 +267,6 @@ def atualizar_cliente(cpf, nome, telefone, email):
         conn.close()
 
 def remover_cliente(cpf):
-    #... (código original sem alterações)
     cpf_limpo = ''.join(filter(str.isdigit, str(cpf)))
     conn, cursor = conectar_bd()
     try:
@@ -283,7 +281,6 @@ def remover_cliente(cpf):
         conn.close()
 
 def listar_clientes():
-    #... (código original sem alterações)
     conn, cursor = conectar_bd()
     cursor.execute("SELECT * FROM clientes")
     clientes = [dict(row) for row in cursor.fetchall()]
@@ -291,10 +288,9 @@ def listar_clientes():
     return clientes
 
 # =============================================================================
-# OPERAÇÕES DE ALUGUEL (Sem alterações)
+# OPERAÇÕES DE ALUGUEL
 # =============================================================================
 def realizar_aluguel(placa_carro, cpf_cliente):
-    #... (código original sem alterações)
     if not placa_carro or not cpf_cliente:
         return (False, ["Placa do carro e CPF do cliente são obrigatórios."])
 
@@ -326,7 +322,6 @@ def realizar_aluguel(placa_carro, cpf_cliente):
         conn.close()
 
 def realizar_devolucao(placa_carro):
-    #... (código original sem alterações)
     conn, cursor = conectar_bd()
     try:
         cursor.execute("SELECT * FROM alugueis WHERE placa_carro = ? AND status = 'Ativo'", (placa_carro.upper().strip(),))
@@ -360,11 +355,10 @@ def realizar_devolucao(placa_carro):
         conn.close()
 
 # =============================================================================
-# OPERAÇÕES DE MANUTENÇÃO (MODIFICADO)
+# OPERAÇÕES DE MANUTENÇÃO
 # =============================================================================
 
 def enviar_para_manutencao(placa, descricao, custo):
-    """Envia um veículo para manutenção com custo e atualiza seu status."""
     erros = list(filter(None, [
         "Placa é obrigatória." if not placa else None,
         "Descrição é obrigatória." if not descricao.strip() else None,
@@ -398,8 +392,33 @@ def enviar_para_manutencao(placa, descricao, custo):
     finally:
         conn.close()
 
+def atualizar_manutencao(manutencao_id, descricao, custo):
+    erros = list(filter(None, [
+        "Descrição é obrigatória." if not descricao.strip() else None,
+        validar_valor(custo)
+    ]))
+    if erros:
+        return (False, erros)
+
+    conn, cursor = conectar_bd()
+    try:
+        custo_float = float(str(custo).replace(",", "."))
+        cursor.execute(
+            "UPDATE manutencoes SET descricao = ?, custo = ? WHERE id = ?",
+            (descricao.strip(), custo_float, manutencao_id)
+        )
+        if cursor.rowcount == 0:
+            return (False, ["Nenhum registro de manutenção encontrado com este ID."])
+        
+        conn.commit()
+        return (True, ["Manutenção atualizada com sucesso."])
+    except Exception as e:
+        conn.rollback()
+        return (False, [f"Erro ao atualizar manutenção: {e}"])
+    finally:
+        conn.close()
+
 def registrar_retorno_manutencao(manutencao_id):
-    """Registra o retorno de um veículo da manutenção (sem custo)."""
     conn, cursor = conectar_bd()
     try:
         cursor.execute("SELECT placa_carro FROM manutencoes WHERE id = ? AND status = 'Em Andamento'", (manutencao_id,))
@@ -424,7 +443,6 @@ def registrar_retorno_manutencao(manutencao_id):
         conn.close()
 
 def listar_manutencoes(status_filtro=None):
-    """Lista as manutenções, com filtro opcional por status."""
     conn, cursor = conectar_bd()
     query = "SELECT * FROM manutencoes"
     params = []
@@ -438,10 +456,9 @@ def listar_manutencoes(status_filtro=None):
     return manutencoes
 
 # =============================================================================
-# CONSULTAS E RELATÓRIOS (Sem alterações)
+# CONSULTAS E RELATÓRIOS
 # =============================================================================
 def listar_alugueis_ativos():
-    #... (código original sem alterações)
     conn, cursor = conectar_bd()
     cursor.execute("SELECT * FROM alugueis WHERE status = 'Ativo' ORDER BY data_retirada DESC")
     alugueis = [dict(row) for row in cursor.fetchall()]
@@ -449,7 +466,6 @@ def listar_alugueis_ativos():
     return alugueis
 
 def buscar_historico(filtro_cpf=None):
-    #... (código original sem alterações)
     conn, cursor = conectar_bd()
     query = "SELECT * FROM alugueis"
     params = []
@@ -465,7 +481,6 @@ def buscar_historico(filtro_cpf=None):
     return historico
 
 def calcular_faturamento_periodo(data_inicio, data_fim):
-    #... (código original sem alterações)
     try:
         datetime.strptime(data_inicio, '%Y-%m-%d')
         datetime.strptime(data_fim, '%Y-%m-%d')
@@ -487,4 +502,3 @@ def calcular_faturamento_periodo(data_inicio, data_fim):
         return (False, [f"Erro ao calcular faturamento: {e}"])
     finally:
         conn.close()
-
